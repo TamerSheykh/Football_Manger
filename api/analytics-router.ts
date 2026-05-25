@@ -199,6 +199,34 @@ export const analyticsRouter = createRouter({
         .orderBy(healthMetrics.recordedAt);
     }),
 
+  // Player match activity (per-match goals + assists)
+  getPlayerMatchActivity: publicQuery
+    .input(z.object({ playerId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const stats = await db
+        .select()
+        .from(playerMatchStats)
+        .where(eq(playerMatchStats.playerId, input.playerId));
+      const result = [];
+      for (const stat of stats) {
+        const match = await db
+          .select()
+          .from(matches)
+          .where(eq(matches.id, stat.matchId))
+          .limit(1);
+        if (match[0]) {
+          result.push({
+            date: match[0].matchDate,
+            opponent: match[0].opponent,
+            goals: stat.goals ?? 0,
+            assists: stat.assists ?? 0,
+          });
+        }
+      }
+      return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }),
+
   // Team statistics summary
   getTeamStats: publicQuery
     .input(z.object({ teamId: z.number() }))

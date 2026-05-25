@@ -11,6 +11,8 @@ import {
   Activity,
   Clock,
   Calendar,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -100,12 +102,33 @@ export default function Medical() {
     },
   });
 
+  const [editingInjuryId, setEditingInjuryId] = useState<number | null>(null);
+
   const createInjuryMutation = trpc.medical.createInjury.useMutation({
     onSuccess: () => {
       utils.medical.listInjuries.invalidate();
       utils.medical.listPlayersWithStatus.invalidate();
       setInjuryDialogOpen(false);
+      setEditingInjuryId(null);
       toast.success("Травма добавлена");
+    },
+  });
+
+  const updateInjuryMutation = trpc.medical.updateInjury.useMutation({
+    onSuccess: () => {
+      utils.medical.listInjuries.invalidate();
+      utils.medical.listPlayersWithStatus.invalidate();
+      setInjuryDialogOpen(false);
+      setEditingInjuryId(null);
+      toast.success("Травма обновлена");
+    },
+  });
+
+  const deleteInjuryMutation = trpc.medical.deleteInjury.useMutation({
+    onSuccess: () => {
+      utils.medical.listInjuries.invalidate();
+      utils.medical.listPlayersWithStatus.invalidate();
+      toast.success("Травма удалена");
     },
   });
 
@@ -188,9 +211,8 @@ export default function Medical() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
-        {[
+          {[
           { key: "cards" as const, label: "Медкарты", icon: HeartPulse },
-          { key: "injuries" as const, label: "Травмы", icon: AlertTriangle },
           { key: "metrics" as const, label: "Показатели", icon: Activity },
         ].map((tab) => (
           <button
@@ -236,12 +258,6 @@ export default function Medical() {
                       <StatusIcon size={12} />
                       {status.label}
                     </span>
-                    {activeInjuries.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-red-500/10 text-red-500">
-                        <AlertTriangle size={12} />
-                        {activeInjuries.length} травм
-                      </span>
-                    )}
                   </div>
                   {latestRecord?.examinationDate && (
                     <p className="text-xs text-gray-500 mt-3">
@@ -266,7 +282,7 @@ export default function Medical() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Травмы</h3>
             {selectedPlayerId && (
               <button
-                onClick={() => setInjuryDialogOpen(true)}
+                onClick={() => { setEditingInjuryId(null); setInjuryForm({ type: "", description: "", dateOccurred: new Date().toISOString().split("T")[0], recoveryDays: 7, status: "active" }); setInjuryDialogOpen(true); }}
                 className="flex items-center gap-2 h-10 px-4 bg-[#1f2937] hover:bg-[#374151] text-white text-sm font-medium rounded-md"
               >
                 <Plus size={16} /> Добавить травму
@@ -285,7 +301,7 @@ export default function Medical() {
               {injuriesList.map((injury) => {
                 const status = injuryStatusConfig[injury.status as keyof typeof injuryStatusConfig];
                 return (
-                  <div key={injury.id} className="bg-white dark:bg-[#191a1b] rounded-[10px] shadow-sm p-5">
+                  <div key={injury.id} className="bg-white dark:bg-[#191a1b] rounded-[10px] shadow-sm p-5 group">
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2">
@@ -297,6 +313,25 @@ export default function Medical() {
                           <span className="flex items-center gap-1"><Calendar size={12} /> {injury.dateOccurred ? new Date(injury.dateOccurred).toLocaleDateString("ru-RU") : "—"}</span>
                           {injury.recoveryDays && <span className="flex items-center gap-1"><Clock size={12} /> {injury.recoveryDays} дней восст.</span>}
                         </div>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => {
+                          setEditingInjuryId(injury.id);
+                          setInjuryForm({
+                            type: injury.type,
+                            description: injury.description || "",
+                            dateOccurred: injury.dateOccurred ? new Date(injury.dateOccurred).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                            recoveryDays: injury.recoveryDays || 7,
+                            status: injury.status as "active" | "recovering" | "healed",
+                          });
+                          setInjuryDialogOpen(true);
+                        }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-md">
+                          <Pencil size={14} className="text-gray-500" />
+                        </button>
+                        <button onClick={() => { if (confirm("Удалить травму?")) deleteInjuryMutation.mutate({ id: injury.id }); }}
+                          className="p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md">
+                          <Trash2 size={14} className="text-red-400" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -464,15 +499,19 @@ export default function Medical() {
       </Dialog>
 
       {/* Injury Dialog */}
-      <Dialog open={injuryDialogOpen} onOpenChange={setInjuryDialogOpen}>
+      <Dialog open={injuryDialogOpen} onOpenChange={(open) => { if (!open) setEditingInjuryId(null); setInjuryDialogOpen(open); }}>
         <DialogContent className="bg-white dark:bg-[#191a1b] border-gray-200 dark:border-[#2a2b2c] max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-gray-900 dark:text-white">Новая травма</DialogTitle>
+            <DialogTitle className="text-gray-900 dark:text-white">{editingInjuryId ? "Редактировать травму" : "Новая травма"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={(e) => {
             e.preventDefault();
             if (!selectedPlayerId) return;
-            createInjuryMutation.mutate({ playerId: selectedPlayerId, ...injuryForm });
+            if (editingInjuryId) {
+              updateInjuryMutation.mutate({ id: editingInjuryId, ...injuryForm });
+            } else {
+              createInjuryMutation.mutate({ playerId: selectedPlayerId, ...injuryForm });
+            }
           }} className="space-y-4 mt-2"
           >
             <div>
@@ -497,10 +536,20 @@ export default function Medical() {
                   className="w-full h-10 px-3 bg-gray-50 dark:bg-[#11131a] border border-gray-200 dark:border-[#2a2b2c] rounded-md text-sm text-gray-900 dark:text-white focus:outline-none focus:border-[#96f7b9]" />
               </div>
             </div>
+            <div>
+              <label className="block text-xs text-gray-500 uppercase mb-1.5">Статус</label>
+              <select value={injuryForm.status} onChange={(e) => setInjuryForm({ ...injuryForm, status: e.target.value as "active" | "recovering" | "healed" })}
+                className="w-full h-10 px-3 bg-gray-50 dark:bg-[#11131a] border border-gray-200 dark:border-[#2a2b2c] rounded-md text-sm text-gray-900 dark:text-white focus:outline-none focus:border-[#96f7b9]"
+              >
+                <option value="active">Активная</option>
+                <option value="recovering">Восстановление</option>
+                <option value="healed">Вылечена</option>
+              </select>
+            </div>
             <div className="flex gap-3 pt-2">
-              <button type="submit" disabled={createInjuryMutation.isPending}
+              <button type="submit" disabled={createInjuryMutation.isPending || updateInjuryMutation.isPending}
                 className="flex-1 h-10 bg-[#1f2937] hover:bg-[#374151] text-white text-sm font-medium rounded-md disabled:opacity-50">
-                {createInjuryMutation.isPending ? "Сохранение..." : "Сохранить"}
+                {createInjuryMutation.isPending || updateInjuryMutation.isPending ? "Сохранение..." : "Сохранить"}
               </button>
               <button type="button" onClick={() => setInjuryDialogOpen(false)}
                 className="flex-1 h-10 bg-gray-100 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-sm rounded-md">Отмена</button>

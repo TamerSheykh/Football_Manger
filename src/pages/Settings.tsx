@@ -74,10 +74,10 @@ export default function Settings() {
             </div>
             <button
               onClick={toggleTheme}
-              className={`w-12 h-6 rounded-full transition-colors relative ${theme === "dark" ? "bg-[#96f7b9]" : "bg-gray-300"}`}
+              className={`w-12 h-6 rounded-full transition-colors relative overflow-hidden shrink-0 ${theme === "dark" ? "bg-[#96f7b9]" : "bg-gray-300"}`}
             >
               <span
-                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${theme === "dark" ? "translate-x-7" : "translate-x-1"}`}
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${theme === "dark" ? "translate-x-6" : "translate-x-0"}`}
               />
             </button>
           </div>
@@ -92,7 +92,7 @@ export default function Settings() {
           <div className="space-y-2 text-sm text-gray-500">
             <p>FootballManager v1.0</p>
             <p>Система управления футбольным клубом</p>
-            <p>Стек: React + TypeScript + tRPC + Drizzle ORM + MySQL</p>
+            <p>Автор: Тамер Шейх Мустафа</p>
           </div>
         </div>
       </div>

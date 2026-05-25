@@ -61,9 +61,9 @@ export default function Analytics() {
     { enabled: !!selectedTeamId }
   );
 
-  const { data: matchActivity } = trpc.analytics.getMatchActivity.useQuery(
-    { teamId: selectedTeamId ?? 0 },
-    { enabled: !!selectedTeamId }
+  const { data: matchActivity } = trpc.analytics.getPlayerMatchActivity.useQuery(
+    { playerId: selectedPlayerId ?? 0 },
+    { enabled: !!selectedPlayerId }
   );
 
   
@@ -103,7 +103,7 @@ export default function Analytics() {
   };
 
   const activityChartData = {
-    labels: (matchActivity ?? []).slice(-10).map((m) => m.opponent.slice(0, 10)),
+    labels: (matchActivity ?? []).slice(-10).map((m) => m.opponent.length > 12 ? m.opponent.slice(0, 11) + "…" : m.opponent),
     datasets: [
       { label: "Голы", data: (matchActivity ?? []).slice(-10).map((m) => m.goals), backgroundColor: "#96f7b9", borderRadius: 4 },
       { label: "Передачи", data: (matchActivity ?? []).slice(-10).map((m) => m.assists), backgroundColor: "#3b82f6", borderRadius: 4 },

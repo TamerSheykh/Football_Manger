@@ -142,6 +142,14 @@ export const medicalRouter = createRouter({
       return { success: true };
     }),
 
+  deleteInjury: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.delete(injuries).where(eq(injuries.id, input.id));
+      return { success: true };
+    }),
+
   // Health Metrics
   listHealthMetrics: publicQuery
     .input(z.object({ playerId: z.number() }).optional())
@@ -216,12 +224,21 @@ export const medicalRouter = createRouter({
           .orderBy(healthMetrics.recordedAt)
           .limit(1);
 
+        const activeInjuries = playerInjuries.filter(
+          (i) => i.status === "active" || i.status === "recovering"
+        );
+
+        // Override medical status based on injuries
+        const hasActive = playerInjuries.some((i) => i.status === "active");
+        const hasRecovering = playerInjuries.some((i) => i.status === "recovering");
+        let derivedStatus = records[0]?.status || "cleared";
+        if (hasActive) derivedStatus = "not_cleared";
+        else if (hasRecovering && (!records[0] || records[0].status === "cleared")) derivedStatus = "limited";
+
         result.push({
           player,
-          latestRecord: records[0] || null,
-          activeInjuries: playerInjuries.filter(
-            (i) => i.status === "active" || i.status === "recovering"
-          ),
+          latestRecord: records[0] ? { ...records[0], status: derivedStatus } : null,
+          activeInjuries,
           latestHealth: latestHealth[0] || null,
         });
       }

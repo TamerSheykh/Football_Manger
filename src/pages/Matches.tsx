@@ -8,6 +8,12 @@ import {
   Calendar,
   Pencil,
   Trash2,
+  Swords,
+  Goal,
+  Crosshair,
+  Square,
+  Minimize2,
+  Clock,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -62,6 +68,135 @@ export default function Matches() {
     selectedTeamId ? { teamId: selectedTeamId } : undefined,
     { enabled: !!selectedTeamId }
   );
+
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [statsMatchId, setStatsMatchId] = useState<number | null>(null);
+  const [playerStats, setPlayerStats] = useState<Record<number, { goals: number; assists: number; yellowCards: number; redCards: boolean; minutesPlayed: string }>>({});
+
+  const { data: teamPlayers } = trpc.player.list.useQuery(
+    selectedTeamId ? { teamId: selectedTeamId } : undefined,
+    { enabled: !!selectedTeamId }
+  );
+
+  const { data: existingStats } = trpc.match.getPlayerStats.useQuery(
+    statsMatchId ? { matchId: statsMatchId } : undefined,
+    { enabled: !!statsMatchId }
+  );
+
+  const statsMutation = trpc.match.savePlayerStats.useMutation({
+    onSuccess: () => { toast.success("Статистика сохранена"); setStatsDialogOpen(false); },
+  });
+
+  const openStats = (matchId: number) => {
+    setStatsMatchId(matchId);
+    setStatsDialogOpen(true);
+  };
+
+  const currentMatch = matchesList?.find((m) => m.id === statsMatchId);
+  const ourGoals = currentMatch
+    ? (currentMatch.isHome ? (currentMatch.scoreHome ?? 0) : (currentMatch.scoreAway ?? 0))
+    : 0;
+  const maxGoals = ourGoals || 999;
+
+  useEffect(() => {
+    if (existingStats && statsMatchId) {
+      const stats: Record<number, { goals: number; assists: number; yellowCards: number; redCards: boolean; minutesPlayed: string }> = {};
+      for (const s of existingStats) {
+        stats[s.playerId] = {
+          goals: s.goals ?? 0,
+          assists: s.assists ?? 0,
+          yellowCards: s.yellowCards ?? 0,
+          redCards: (s.redCards ?? 0) > 0,
+          minutesPlayed: String(s.minutesPlayed ?? ""),
+        };
+      }
+      setPlayerStats(stats);
+    } else if (statsMatchId) {
+      setPlayerStats({});
+    }
+  }, [existingStats, statsMatchId]);
+
+  const incPlayerGoals = (playerId: number) => {
+    setPlayerStats((prev) => {
+      const total = Object.values(prev).reduce((s, p) => s + (p?.goals ?? 0), 0);
+      if (total >= maxGoals) return prev;
+      return { ...prev, [playerId]: { ...(prev[playerId] ?? { goals: 0, assists: 0, yellowCards: 0, redCards: false, minutesPlayed: "" }), goals: (prev[playerId]?.goals ?? 0) + 1 } };
+    });
+  };
+
+  const decPlayerGoals = (playerId: number) => {
+    setPlayerStats((prev) => {
+      const current = prev[playerId]?.goals ?? 0;
+      if (current <= 0) return prev;
+      return { ...prev, [playerId]: { ...prev[playerId], goals: current - 1 } };
+    });
+  };
+
+  const incPlayerYC = (playerId: number) => {
+    setPlayerStats((prev) => {
+      const current = prev[playerId]?.yellowCards ?? 0;
+      if (current >= 2) return prev;
+      return { ...prev, [playerId]: { ...prev[playerId], yellowCards: current + 1 } };
+    });
+  };
+
+  const decPlayerYC = (playerId: number) => {
+    setPlayerStats((prev) => {
+      const current = prev[playerId]?.yellowCards ?? 0;
+      if (current <= 0) return prev;
+      return { ...prev, [playerId]: { ...prev[playerId], yellowCards: current - 1 } };
+    });
+  };
+
+  const incPlayerAssists = (playerId: number) => {
+    setPlayerStats((prev) => {
+      const total = Object.values(prev).reduce((s, p) => s + (p?.assists ?? 0), 0);
+      if (total >= maxGoals) return prev;
+      const playerGoals = prev[playerId]?.goals ?? 0;
+      const playerMaxAssists = maxGoals - playerGoals;
+      if ((prev[playerId]?.assists ?? 0) >= playerMaxAssists) return prev;
+      return { ...prev, [playerId]: { ...(prev[playerId] ?? { goals: 0, assists: 0, yellowCards: 0, redCards: false, minutesPlayed: "" }), assists: (prev[playerId]?.assists ?? 0) + 1 } };
+    });
+  };
+
+  const decPlayerAssists = (playerId: number) => {
+    setPlayerStats((prev) => {
+      const current = prev[playerId]?.assists ?? 0;
+      if (current <= 0) return prev;
+      return { ...prev, [playerId]: { ...prev[playerId], assists: current - 1 } };
+    });
+  };
+
+  const togglePlayerRC = (playerId: number) => {
+    setPlayerStats((prev) => ({
+      ...prev,
+      [playerId]: { ...(prev[playerId] ?? { goals: 0, assists: 0, yellowCards: 0, redCards: false, minutesPlayed: "" }), redCards: !(prev[playerId]?.redCards ?? false) },
+    }));
+  };
+
+  const setPlayerMinutes = (playerId: number, minutes: string) => {
+    setPlayerStats((prev) => ({
+      ...prev,
+      [playerId]: { ...(prev[playerId] ?? { goals: 0, assists: 0, yellowCards: 0, redCards: false, minutesPlayed: "" }), minutesPlayed: minutes },
+    }));
+  };
+
+  const handleSaveStats = () => {
+    if (!statsMatchId || !teamPlayers) return;
+    const data = teamPlayers.map((p) => {
+      const s = playerStats[p.id] ?? { goals: 0, assists: 0, yellowCards: 0, redCards: false, minutesPlayed: "" };
+      return {
+        matchId: statsMatchId,
+        playerId: p.id,
+        goals: s.goals,
+        assists: s.assists,
+        yellowCards: s.yellowCards,
+        redCards: s.redCards ? 1 : 0,
+        minutesPlayed: Number(s.minutesPlayed) || 0,
+      };
+    });
+    statsMutation.mutate(data);
+  };
 
   const createMutation = trpc.match.create.useMutation({
     onSuccess: () => { utils.match.list.invalidate(); setDialogOpen(false); toast.success("Матч добавлен"); },
@@ -172,6 +307,12 @@ export default function Matches() {
                       {matchStatusLabels[match.status]}
                     </span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {match.status === "played" && (
+                        <button onClick={() => openStats(match.id)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-md"
+                          title="Статистика игроков">
+                          <Swords size={14} className="text-gray-500" />
+                        </button>
+                      )}
                       <button onClick={() => openEdit(match)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-md">
                         <Pencil size={14} className="text-gray-500" />
                       </button>
@@ -266,6 +407,100 @@ export default function Matches() {
           </form>
         </DialogContent>
       </Dialog>
+      {/* Player Stats Dialog */}
+      <Dialog open={statsDialogOpen} onOpenChange={setStatsDialogOpen}>
+        <DialogContent style={{ maxWidth: "65vw" }} className="bg-white dark:bg-[#191a1b] border-gray-200 dark:border-[#2a2b2c] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">Статистика игроков</DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-2">
+            {teamPlayers && teamPlayers.length > 0 ? (
+              teamPlayers.map((player) => {
+                const stats = playerStats[player.id] ?? { goals: false, assists: false, yellowCards: false, redCards: false, minutesPlayed: "" };
+                return (
+                  <div key={player.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-[#11131a] border border-gray-200 dark:border-[#2a2b2c]">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white min-w-[140px] truncate">{player.name}</span>
+                    <span className="text-[10px] text-gray-500 uppercase min-w-[32px]">{player.position}</span>
+                    <div className="flex-1 flex items-center gap-4">
+                      {/* Goals counter */}
+                      <div className="flex items-center gap-1">
+                        <Goal size={14} className="text-emerald-500" />
+                        <button type="button" onClick={() => decPlayerGoals(player.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded bg-gray-200 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-300 dark:hover:bg-[#3a3b3c] disabled:opacity-30"
+                          disabled={stats.goals <= 0}>–</button>
+                        <span className="text-xs font-mono text-gray-900 dark:text-white min-w-[12px] text-center">{stats.goals}</span>
+                        <button type="button" onClick={() => incPlayerGoals(player.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded bg-gray-200 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-300 dark:hover:bg-[#3a3b3c]">+</button>
+                        <span className="text-[10px] text-gray-400">Гол</span>
+                        {ourGoals > 0 && (
+                          <span className="text-[10px] text-gray-500 ml-1">
+                            {Object.values(playerStats).reduce((s, p) => s + (p?.goals ?? 0), 0)}/{ourGoals}
+                          </span>
+                        )}
+                      </div>
+                      {/* Assists counter */}
+                      <div className="flex items-center gap-1">
+                        <Crosshair size={14} className="text-blue-500" />
+                        <button type="button" onClick={() => decPlayerAssists(player.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded bg-gray-200 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-300 dark:hover:bg-[#3a3b3c] disabled:opacity-30"
+                          disabled={stats.assists <= 0}>–</button>
+                        <span className="text-xs font-mono text-gray-900 dark:text-white min-w-[12px] text-center">{stats.assists}</span>
+                        <button type="button" onClick={() => incPlayerAssists(player.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded bg-gray-200 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-300 dark:hover:bg-[#3a3b3c] disabled:opacity-30"
+                          disabled={stats.assists >= maxGoals - stats.goals}>+</button>
+                        <span className="text-[10px] text-gray-400">Пас</span>
+                        {ourGoals > 0 ? (
+                          <span className="text-[10px] text-gray-500 ml-1">
+                            {Object.values(playerStats).reduce((s, p) => s + (p?.assists ?? 0), 0)}/{ourGoals}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-600 ml-1">без лимита</span>
+                        )}
+                      </div>
+                      {/* Yellow cards counter (max 2) */}
+                      <div className="flex items-center gap-1">
+                        <Square size={14} className="text-yellow-500" />
+                        <button type="button" onClick={() => decPlayerYC(player.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded bg-gray-200 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-300 dark:hover:bg-[#3a3b3c] disabled:opacity-30"
+                          disabled={stats.yellowCards <= 0}>–</button>
+                        <span className="text-xs font-mono text-gray-900 dark:text-white min-w-[12px] text-center">{stats.yellowCards}</span>
+                        <button type="button" onClick={() => incPlayerYC(player.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded bg-gray-200 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-300 dark:hover:bg-[#3a3b3c] disabled:opacity-30"
+                          disabled={stats.yellowCards >= 2}>+</button>
+                        <span className="text-[10px] text-gray-400">ЖК</span>
+                      </div>
+                      {/* Red card checkbox */}
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" checked={stats.redCards} onChange={() => togglePlayerRC(player.id)}
+                          className="w-4 h-4 rounded accent-[#ef4444]" />
+                        <Minimize2 size={14} className="text-red-500" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400">КК</span>
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={14} className="text-gray-400" />
+                        <input type="number" min="0" max="120" value={stats.minutesPlayed} onChange={(e) => setPlayerMinutes(player.id, e.target.value)}
+                          className="w-16 h-7 px-2 bg-white dark:bg-[#191a1b] border border-gray-200 dark:border-[#2a2b2c] rounded text-xs text-gray-900 dark:text-white text-center"
+                          placeholder="мин" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">Нет игроков в команде</p>
+            )}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={handleSaveStats} disabled={statsMutation.isPending}
+              className="flex-1 h-10 bg-[#1f2937] hover:bg-[#374151] text-white text-sm font-medium rounded-md disabled:opacity-50">
+              {statsMutation.isPending ? "Сохранение..." : "Сохранить статистику"}
+            </button>
+            <button type="button" onClick={() => setStatsDialogOpen(false)}
+              className="flex-1 h-10 bg-gray-100 dark:bg-[#2a2b2c] text-gray-600 dark:text-gray-300 text-sm rounded-md">Отмена</button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </Layout>
   );
 }

@@ -14,9 +14,11 @@ import {
   Square,
   Minimize2,
   Clock,
+  LayoutGrid,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import TacticsBoard from "@/components/TacticsBoard";
 
 const matchStatusColors: Record<string, string> = {
   scheduled: "bg-blue-500",
@@ -39,6 +41,7 @@ const resultColors: Record<string, string> = {
 export default function Matches() {
   const { user } = useCustomAuth();
   const utils = trpc.useUtils();
+  const [activeTab, setActiveTab] = useState<"calendar" | "tactics">("calendar");
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<number | null>(null);
@@ -271,13 +274,37 @@ export default function Matches() {
         </div>
       </div>
 
-      {isLoading ? (
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setActiveTab("calendar")}
+          className={`flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === "calendar" ? "bg-[#96f7b9] text-[#1e2c20]" : "bg-white dark:bg-[#191a1b] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-[#2a2b2c] hover:border-[#96f7b9]"
+          }`}
+        >
+          <Trophy size={16} />
+          Календарь
+        </button>
+        <button
+          onClick={() => setActiveTab("tactics")}
+          className={`flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === "tactics" ? "bg-[#96f7b9] text-[#1e2c20]" : "bg-white dark:bg-[#191a1b] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-[#2a2b2c] hover:border-[#96f7b9]"
+          }`}
+        >
+          <LayoutGrid size={16} />
+          Тактика
+        </button>
+      </div>
+
+      {activeTab === "tactics" && selectedTeamId ? (
+        <TacticsBoard teamId={selectedTeamId} />
+      ) : activeTab === "calendar" && isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="bg-white dark:bg-[#191a1b] rounded-[10px] h-20 animate-pulse" />
           ))}
         </div>
-      ) : matchesList && matchesList.length > 0 ? (
+      ) : activeTab === "calendar" && matchesList && matchesList.length > 0 ? (
         <div className="space-y-3">
           {matchesList.map((match) => {
             const result = getResult(match);
@@ -328,13 +355,13 @@ export default function Matches() {
             );
           })}
         </div>
-      ) : (
+      ) : activeTab === "calendar" ? (
         <div className="bg-white dark:bg-[#191a1b] rounded-[10px] p-12 text-center">
           <Trophy className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Нет матчей</h3>
           <p className="text-sm text-gray-500 mt-1">Добавьте первый матч</p>
         </div>
-      )}
+      ) : null}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-white dark:bg-[#191a1b] border-gray-200 dark:border-[#2a2b2c] max-w-md">

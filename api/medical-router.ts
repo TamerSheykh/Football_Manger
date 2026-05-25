@@ -229,15 +229,20 @@ export const medicalRouter = createRouter({
         );
 
         // Override medical status based on injuries
-        const hasActive = playerInjuries.some((i) => i.status === "active");
-        const hasRecovering = playerInjuries.some((i) => i.status === "recovering");
-        let derivedStatus = records[0]?.status || "cleared";
-        if (hasActive) derivedStatus = "not_cleared";
-        else if (hasRecovering && (!records[0] || records[0].status === "cleared")) derivedStatus = "limited";
+        const hasActiveOrRecovering = playerInjuries.some(
+          (i) => i.status === "active" || i.status === "recovering"
+        );
+        const dbStatus = records[0]?.status || "cleared";
+        const derivedStatus = hasActiveOrRecovering ? "not_cleared" : dbStatus;
+        const latestRecord = records[0]
+          ? { ...records[0], status: derivedStatus }
+          : hasActiveOrRecovering
+            ? { status: "not_cleared" as const, playerId: player.id, examinationDate: null }
+            : null;
 
         result.push({
           player,
-          latestRecord: records[0] ? { ...records[0], status: derivedStatus } : null,
+          latestRecord,
           activeInjuries,
           latestHealth: latestHealth[0] || null,
         });

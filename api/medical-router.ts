@@ -165,6 +165,14 @@ export const medicalRouter = createRouter({
       return db.select().from(healthMetrics).orderBy(healthMetrics.recordedAt);
     }),
 
+  deleteHealthMetric: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.delete(healthMetrics).where(eq(healthMetrics.id, input.id));
+      return { success: true };
+    }),
+
   createHealthMetric: publicQuery
     .input(
       z.object({

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
@@ -242,10 +242,27 @@ export const analyticsRouter = createRouter({
         .from(matches)
         .where(eq(matches.teamId, input.teamId));
 
+      // This week's trainings (Monday–Sunday)
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() + mondayOffset);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
       const trainings = await db
         .select()
         .from(trainingSessions)
-        .where(eq(trainingSessions.teamId, input.teamId));
+        .where(
+          and(
+            eq(trainingSessions.teamId, input.teamId),
+            gte(trainingSessions.sessionDate, weekStart),
+            lte(trainingSessions.sessionDate, weekEnd)
+          )
+        );
 
       const activeInjuries = [];
       for (const player of teamPlayers) {

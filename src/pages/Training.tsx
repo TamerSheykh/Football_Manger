@@ -6,6 +6,7 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -82,6 +83,13 @@ export default function Training() {
       utils.training.getPlayersForAttendance.invalidate();
       toast.success("Посещаемость сохранена");
       setAttendanceDialogOpen(false);
+    },
+  });
+
+  const deleteMutation = trpc.training.delete.useMutation({
+    onSuccess: () => {
+      utils.training.list.invalidate();
+      toast.success("Тренировка удалена");
     },
   });
 
@@ -217,13 +225,20 @@ export default function Training() {
                   {dayTrainings.slice(0, 2).map((t) => {
                     const type = trainingTypes.find((tt) => tt.value === t.type);
                     return (
-                      <button
-                        key={t.id}
-                        onClick={(e) => { e.stopPropagation(); openAttendance(t.id); }}
-                        className={`block w-full text-left px-1.5 py-0.5 rounded text-[10px] text-white ${type?.color || "bg-gray-500"} truncate`}
-                      >
-                        {t.sessionTime?.slice(0, 5)} {t.name}
-                      </button>
+                      <div key={t.id} className="flex items-center gap-0.5 group/item">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openAttendance(t.id); }}
+                          className={`flex-1 text-left px-1.5 py-0.5 rounded text-[10px] text-white ${type?.color || "bg-gray-500"} truncate`}
+                        >
+                          {t.sessionTime?.slice(0, 5)} {t.name}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (confirm("Удалить тренировку?")) deleteMutation.mutate({ id: t.id }); }}
+                          className="opacity-0 group-hover/item:opacity-100 p-0.5 hover:bg-white/20 rounded shrink-0"
+                        >
+                          <Trash2 size={10} className="text-white/70" />
+                        </button>
+                      </div>
                     );
                   })}
                   {dayTrainings.length > 2 && (

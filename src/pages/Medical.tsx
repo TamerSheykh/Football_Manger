@@ -102,6 +102,13 @@ export default function Medical() {
     },
   });
 
+  const deleteMetricMutation = trpc.medical.deleteHealthMetric.useMutation({
+    onSuccess: () => {
+      utils.medical.listHealthMetrics.invalidate();
+      toast.success("Показатели удалены");
+    },
+  });
+
   const [editingInjuryId, setEditingInjuryId] = useState<number | null>(null);
 
   const createInjuryMutation = trpc.medical.createInjury.useMutation({
@@ -407,17 +414,24 @@ export default function Medical() {
                       <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase">Пульс</th>
                       <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase">Дистанция Купера</th>
                       <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase">Давление</th>
+                      <th className="w-10" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-[#2a2b2c]">
                     {healthData.slice().reverse().map((h) => (
-                      <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                      <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] group">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{new Date(h.recordedAt).toLocaleDateString("ru-RU")}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{h.weight ? `${h.weight} кг` : "—"}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{h.restingHr ? `${h.restingHr} уд/мин` : "—"}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{h.cooperDistance ? `${h.cooperDistance} км` : "—"}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                           {h.bloodPressureSys && h.bloodPressureDia ? `${h.bloodPressureSys}/${h.bloodPressureDia}` : "—"}
+                        </td>
+                        <td className="px-2 py-3">
+                          <button onClick={() => { if (confirm("Удалить показатели?")) deleteMetricMutation.mutate({ id: h.id }); }}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md">
+                            <Trash2 size={14} className="text-red-400" />
+                          </button>
                         </td>
                       </tr>
                     ))}

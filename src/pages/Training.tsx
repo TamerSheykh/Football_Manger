@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  FileText,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -23,6 +24,10 @@ import {
   subMonths,
 } from "date-fns";
 import { ru } from "date-fns/locale";
+import {
+  Document, Packer, Paragraph, Table, TableRow, TableCell,
+  WidthType, AlignmentType, HeadingLevel, BorderStyle,
+} from "docx";
 
 const trainingTypes = [
   { value: "general", label: "Общая", color: "bg-blue-500" },
@@ -128,6 +133,70 @@ export default function Training() {
     }
   }, [attendancePlayers]);
 
+  const handlePrintReport = async () => {
+    const teamName = teams?.find((t) => t.id === selectedTeamId)?.name || "Команда";
+    const monthName = format(currentMonth, "LLLL yyyy", { locale: ru });
+    const trainingsForMonth = (trainings ?? []).filter((t) => {
+      const d = new Date(t.sessionDate);
+      return isSameMonth(d, currentMonth);
+    }).sort((a, b) => new Date(a.sessionDate).getTime() - new Date(b.sessionDate).getTime());
+
+    const typeLabel: Record<string, string> = {
+      general: "Общая", tactical: "Тактическая", physical: "Физическая", technical: "Техническая",
+    };
+
+    const border = { style: BorderStyle.SINGLE, size: 1, color: "cccccc" };
+
+    const headerRow = new TableRow({
+      tableHeader: true,
+      children: ["Дата", "Время", "Название", "Тип", "Место", "Описание"].map((text) =>
+        new TableCell({
+          width: { size: text === "Название" || text === "Описание" ? 25 : 12, type: WidthType.PERCENTAGE },
+          borders: { top: border, bottom: border, left: border, right: border },
+          children: [new Paragraph({ text, alignment: AlignmentType.CENTER, bold: true, size: 18 })],
+        })
+      ),
+    });
+
+    const dataRows = trainingsForMonth.map((t) =>
+      new TableRow({
+        children: [
+          new Date(t.sessionDate).toLocaleDateString("ru-RU"),
+          t.sessionTime?.slice(0, 5) || "—",
+          t.name,
+          typeLabel[t.type] || t.type,
+          t.location || "—",
+          t.description || "—",
+        ].map((text) =>
+          new TableCell({
+            borders: { top: border, bottom: border, left: border, right: border },
+            children: [new Paragraph({ text, size: 18 })],
+          })
+        ),
+      })
+    );
+
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: "Отчёт по тренировкам", heading: HeadingLevel.HEADING_1 }),
+          new Paragraph({ text: `${teamName} · ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`, size: 20, color: "6b7280" }),
+          new Paragraph({ spacing: { after: 200 } }),
+          new Table({ rows: [headerRow, ...dataRows] }),
+          new Paragraph({ spacing: { before: 400 }, text: `Всего тренировок: ${trainingsForMonth.length}`, size: 18, color: "9ca3af" }),
+        ],
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `training_report_${format(currentMonth, "yyyy-MM")}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSaveAttendance = () => {
     if (!selectedTraining) return;
     const records = Object.entries(attendanceData).map(([playerId, data]) => ({
@@ -156,6 +225,13 @@ export default function Training() {
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
+          <button
+            onClick={handlePrintReport}
+            className="flex items-center gap-2 h-10 px-4 bg-white dark:bg-[#191a1b] border border-gray-200 dark:border-[#2a2b2c] text-gray-600 dark:text-gray-300 text-sm font-medium rounded-md hover:border-[#96f7b9] transition-colors"
+          >
+            <FileText size={16} />
+            Отчёт
+          </button>
           <button
             onClick={() => setDialogOpen(true)}
             className="flex items-center gap-2 h-10 px-4 bg-[#1f2937] hover:bg-[#374151] text-white text-sm font-medium rounded-md transition-colors"

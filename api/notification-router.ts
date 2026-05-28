@@ -66,6 +66,14 @@ export const notificationRouter = createRouter({
       return { success: true };
     }),
 
+  delete: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.delete(notifications).where(eq(notifications.id, input.id));
+      return { success: true };
+    }),
+
   markAllAsRead: publicQuery
     .input(z.object({ userId: z.number() }))
     .mutation(async ({ input }) => {

@@ -40,3 +40,5 @@ function requireRole(role: string) {
 
 export const authedQuery = t.procedure.use(requireAuth);
 export const adminQuery = authedQuery.use(requireRole("admin"));
+export const coachQuery = authedQuery.use(requireRole("coach"));
+export const medicalQuery = authedQuery.use(requireRole("medical"));

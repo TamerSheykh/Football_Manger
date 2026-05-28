@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, coachQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { matches, playerMatchStats } from "@db/schema";
 
@@ -15,7 +15,7 @@ export const matchRouter = createRouter({
       return db.select().from(matches);
     }),
 
-  create: publicQuery
+  create: coachQuery
     .input(
       z.object({
         teamId: z.number(),
@@ -45,7 +45,7 @@ export const matchRouter = createRouter({
       return { id: Number(result[0].insertId) };
     }),
 
-  update: publicQuery
+  update: coachQuery
     .input(
       z.object({
         id: z.number(),
@@ -75,7 +75,7 @@ export const matchRouter = createRouter({
       return { success: true };
     }),
 
-  delete: publicQuery
+  delete: coachQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -93,7 +93,7 @@ export const matchRouter = createRouter({
         .where(eq(playerMatchStats.matchId, input.matchId));
     }),
 
-  savePlayerStats: publicQuery
+  savePlayerStats: coachQuery
     .input(
       z.array(
         z.object({

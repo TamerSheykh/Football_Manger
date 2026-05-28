@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, coachQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { trainingSessions, attendance, players } from "@db/schema";
 
@@ -18,11 +18,11 @@ export const trainingRouter = createRouter({
       return db.select().from(trainingSessions);
     }),
 
-  create: publicQuery
+  create: coachQuery
     .input(
       z.object({
         teamId: z.number(),
-        name: z.string().min(1),
+        name: z.string(),
         sessionDate: z.string(),
         sessionTime: z.string().optional(),
         location: z.string().optional(),
@@ -44,7 +44,7 @@ export const trainingRouter = createRouter({
       return { id: Number(result[0].insertId) };
     }),
 
-  update: publicQuery
+  update: coachQuery
     .input(
       z.object({
         id: z.number(),
@@ -70,7 +70,7 @@ export const trainingRouter = createRouter({
       return { success: true };
     }),
 
-  delete: publicQuery
+  delete: coachQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -89,7 +89,7 @@ export const trainingRouter = createRouter({
       return records;
     }),
 
-  saveAttendance: publicQuery
+  saveAttendance: coachQuery
     .input(
       z.array(
         z.object({

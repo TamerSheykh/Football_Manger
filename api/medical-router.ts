@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, medicalQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
   medicalRecords,
@@ -26,7 +26,7 @@ export const medicalRouter = createRouter({
       return db.select().from(medicalRecords);
     }),
 
-  createRecord: publicQuery
+  createRecord: medicalQuery
     .input(
       z.object({
         playerId: z.number(),
@@ -52,7 +52,7 @@ export const medicalRouter = createRouter({
       return { id: Number(result[0].insertId) };
     }),
 
-  updateRecord: publicQuery
+  updateRecord: medicalQuery
     .input(
       z.object({
         id: z.number(),
@@ -96,7 +96,7 @@ export const medicalRouter = createRouter({
       return db.select().from(injuries);
     }),
 
-  createInjury: publicQuery
+  createInjury: medicalQuery
     .input(
       z.object({
         playerId: z.number(),
@@ -120,7 +120,7 @@ export const medicalRouter = createRouter({
       return { id: Number(result[0].insertId) };
     }),
 
-  updateInjury: publicQuery
+  updateInjury: medicalQuery
     .input(
       z.object({
         id: z.number(),
@@ -144,7 +144,7 @@ export const medicalRouter = createRouter({
       return { success: true };
     }),
 
-  deleteInjury: publicQuery
+  deleteInjury: medicalQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -167,7 +167,7 @@ export const medicalRouter = createRouter({
       return db.select().from(healthMetrics).orderBy(healthMetrics.recordedAt);
     }),
 
-  deleteHealthMetric: publicQuery
+  deleteHealthMetric: authedQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -175,7 +175,7 @@ export const medicalRouter = createRouter({
       return { success: true };
     }),
 
-  createHealthMetric: publicQuery
+  createHealthMetric: authedQuery
     .input(
       z.object({
         playerId: z.number(),

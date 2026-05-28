@@ -36,12 +36,25 @@ export const teams = mysqlTable("teams", {
   color: varchar("color", { length: 7 }).default("#96f7b9"),
   description: text("description"),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  inviteCode: varchar("invite_code", { length: 20 }).notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });
 
 export type Team = typeof teams.$inferSelect;
 export type InsertTeam = typeof teams.$inferInsert;
+
+// Team members (users who joined via invite code)
+export const teamMembers = mysqlTable("team_members", {
+  id: serial("id").primaryKey(),
+  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  role: mysqlEnum("role", ["medical", "coach"]).default("medical").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type InsertTeamMember = typeof teamMembers.$inferInsert;
 
 // Players
 export const players = mysqlTable("players", {

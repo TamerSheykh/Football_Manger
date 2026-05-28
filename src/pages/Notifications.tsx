@@ -1,7 +1,7 @@
 import Layout from "@/components/layout/Layout";
 import { useCustomAuth } from "@/hooks/useCustomAuth";
 import { trpc } from "@/providers/trpc";
-import { Bell, Check, AlertTriangle, XCircle, Info } from "lucide-react";
+import { Bell, Check, AlertTriangle, XCircle, Info, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const typeConfig = {
@@ -25,6 +25,10 @@ export default function Notifications() {
 
   const markAllAsRead = trpc.notification.markAllAsRead.useMutation({
     onSuccess: () => { utils.notification.list.invalidate(); utils.notification.getUnreadCount.invalidate(); toast.success("Все уведомления прочитаны"); },
+  });
+
+  const deleteMutation = trpc.notification.delete.useMutation({
+    onSuccess: () => { utils.notification.list.invalidate(); utils.notification.getUnreadCount.invalidate(); toast.success("Уведомление удалено"); },
   });
 
   return (
@@ -68,14 +72,22 @@ export default function Notifications() {
                       {new Date(note.createdAt).toLocaleDateString("ru-RU")} {new Date(note.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
-                  {!note.isRead && (
-                    <button onClick={() => markAsRead.mutate({ id: note.id })}
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition-colors flex-shrink-0"
-                      title="Отметить прочитанным"
+                  <div className="flex gap-1 flex-shrink-0">
+                    {!note.isRead && (
+                      <button onClick={() => markAsRead.mutate({ id: note.id })}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-md transition-colors"
+                        title="Отметить прочитанным"
+                      >
+                        <Check size={16} className="text-gray-400" />
+                      </button>
+                    )}
+                    <button onClick={() => { if (confirm("Удалить уведомление?")) deleteMutation.mutate({ id: note.id }); }}
+                      className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors"
+                      title="Удалить"
                     >
-                      <Check size={16} className="text-gray-400" />
+                      <Trash2 size={16} className="text-red-400" />
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
             );

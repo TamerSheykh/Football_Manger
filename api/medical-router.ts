@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
@@ -7,6 +7,8 @@ import {
   injuries,
   healthMetrics,
   players,
+  teams,
+  notifications,
 } from "@db/schema";
 
 export const medicalRouter = createRouter({
@@ -198,6 +200,55 @@ export const medicalRouter = createRouter({
         bloodPressureDia: input.bloodPressureDia || null,
         recordedAt: new Date(input.recordedAt),
       });
+
+      // Anomaly detection for weight
+      const player = await db.select().from(players).where(eq(players.id, input.playerId)).limit(1);
+      if (player[0]) {
+        const team = await db.select().from(teams).where(eq(teams.id, player[0].teamId)).limit(1);
+        const userId = team[0]?.userId;
+
+        const healthData = await db
+          .select()
+          .from(healthMetrics)
+          .where(eq(healthMetrics.playerId, input.playerId))
+          .orderBy(healthMetrics.recordedAt);
+
+        const weights = healthData.map((h) => Number(h.weight)).filter((w) => w > 0);
+
+        if (weights.length >= 2) {
+          const mean = weights.reduce((s, w) => s + w, 0) / weights.length;
+          const std = Math.sqrt(weights.reduce((s, w) => s + (w - mean) ** 2, 0) / weights.length);
+          const lastWeight = weights[weights.length - 1];
+          const zScore = std > 0 ? (lastWeight - mean) / std : 0;
+          if (Math.abs(zScore) > 2 && userId) {
+            const severity = Math.abs(zScore) > 3 ? "error" : "warning";
+            await db.insert(notifications).values({
+              userId,
+              type: severity,
+              title: "Аномалия веса",
+              message: `${player[0].name}: резкое изменение веса ${lastWeight}кг (Z-score: ${zScore.toFixed(2)})`,
+              playerId: input.playerId,
+            });
+          }
+        }
+
+        // Check heart rate anomaly
+        const lastHealth = healthData[healthData.length - 1];
+        if (lastHealth?.restingHr && player[0].birthDate && userId) {
+          const age = new Date().getFullYear() - new Date(player[0].birthDate).getFullYear();
+          const hrMax = 208 - 0.7 * age;
+          if (lastHealth.restingHr > hrMax) {
+            await db.insert(notifications).values({
+              userId,
+              type: "error",
+              title: "Превышение пульса",
+              message: `${player[0].name}: пульс ${lastHealth.restingHr} уд/мин (HRmax: ${hrMax.toFixed(0)})`,
+              playerId: input.playerId,
+            });
+          }
+        }
+      }
+
       return { id: Number(result[0].insertId) };
     }),
 

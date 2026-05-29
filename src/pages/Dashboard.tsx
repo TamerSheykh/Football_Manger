@@ -102,10 +102,11 @@ export default function Dashboard() {
     { enabled: !!selectedTeamId }
   );
 
-  const { data: anomalies } = trpc.analytics.getAnomalies.useQuery(
-    { teamId: selectedTeamId ?? 0 },
-    { enabled: !!selectedTeamId }
-  );
+  const utils = trpc.useUtils();
+
+  useEffect(() => {
+    utils.notification.list.invalidate();
+  }, []);
 
   const { data: notifications } = trpc.notification.list.useQuery(
     user?.id ? { userId: user.id } : undefined,
@@ -332,21 +333,6 @@ export default function Dashboard() {
                   <div>
                     <p className="text-sm text-gray-900 dark:text-white">{note.title}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{note.message}</p>
-                  </div>
-                </div>
-              ))
-            ) : anomalies && anomalies.length > 0 ? (
-              anomalies.slice(0, 5).map((a, i) => (
-                <div
-                  key={i}
-                  className={`flex gap-3 p-3 rounded-lg border-l-2
-                    ${a.severity === "error" ? "border-l-red-500 bg-red-500/5" : "border-l-amber-500 bg-amber-500/5"}`}
-                >
-                  <Bell size={14} className={`mt-0.5 flex-shrink-0
-                    ${a.severity === "error" ? "text-red-400" : "text-amber-400"}`} />
-                  <div>
-                    <p className="text-sm text-gray-900 dark:text-white">{a.playerName}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{a.message}</p>
                   </div>
                 </div>
               ))

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, and, inArray } from "drizzle-orm";
 import { createRouter, publicQuery, coachQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { teams, teamMembers } from "@db/schema";
+import { teams, teamMembers, users } from "@db/schema";
 
 function generateInviteCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -74,7 +74,10 @@ export const teamRouter = createRouter({
         userId: input.userId,
         inviteCode,
       });
-      return { id: Number(result[0].insertId), inviteCode };
+      const teamId = Number(result[0].insertId);
+      const owner = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      await db.insert(teamMembers).values({ teamId, userId: input.userId, role: owner[0]?.role ?? "coach" });
+      return { id: teamId, inviteCode };
     }),
 
   update: coachQuery
@@ -122,7 +125,9 @@ export const teamRouter = createRouter({
         )
         .limit(1);
       if (existing[0]) return { success: false, error: "Вы уже в команде" };
-      await db.insert(teamMembers).values({ teamId: team[0].id, userId: input.userId });
+      const user = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      const role = user[0]?.role ?? "coach";
+      await db.insert(teamMembers).values({ teamId: team[0].id, userId: input.userId, role });
       return { success: true, team: team[0] };
     }),
 });

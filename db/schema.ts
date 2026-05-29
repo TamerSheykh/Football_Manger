@@ -49,7 +49,7 @@ export const teamMembers = mysqlTable("team_members", {
   id: serial("id").primaryKey(),
   teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
-  role: mysqlEnum("role", ["medical", "coach"]).default("medical").notNull(),
+  role: mysqlEnum("role", ["medical", "coach"]).default("coach").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

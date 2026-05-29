@@ -250,7 +250,7 @@ export default function Players() {
                     <div className="text-center">
                       <p className="text-xs text-gray-500 uppercase">Рост</p>
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {player.height ? `${player.height} см` : "—"}
+                        {player.height ? `${Math.round(Number(player.height))} см` : "—"}
                       </p>
                     </div>
                     <div className="text-center">

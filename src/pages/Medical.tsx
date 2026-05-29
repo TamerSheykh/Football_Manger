@@ -254,7 +254,7 @@ export default function Medical() {
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{player.name}</h3>
                       <p className="text-xs text-gray-500">
-                        {player.height ? `${player.height} см` : ""}
+                        {player.height ? `${Math.round(Number(player.height))} см` : ""}
                         {player.height && player.weight ? " · " : ""}
                         {player.weight ? `${player.weight} кг` : ""}
                       </p>

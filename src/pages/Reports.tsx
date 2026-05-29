@@ -345,7 +345,7 @@ export default function Reports() {
               "Позиция": { GK: "ВР", DEF: "ЗАЩ", MID: "ПЗ", FWD: "НАП" }[p.player.position] || p.player.position,
               "Дата": new Date(m.recordedAt).toLocaleDateString("ru-RU"),
               "Вес (кг)": m.weight ?? "—",
-              "Рост (см)": m.height ?? "—",
+              "Рост (см)": m.height ? Math.round(Number(m.height)) : "—",
               "Пульс покоя": m.restingHr ?? "—",
               "Дистанция Купера (км)": m.cooperDistance ?? "—",
               "Давление (сист)": m.bloodPressureSys ?? "—",

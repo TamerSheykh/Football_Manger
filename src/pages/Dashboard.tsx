@@ -50,14 +50,16 @@ function KpiCard({
   trend,
   trendValue,
   icon,
+  to,
 }: {
   title: string;
   value: number | string;
   trend: "up" | "down" | "same";
   trendValue: string;
   icon: React.ReactNode;
+  to?: string;
 }) {
-  return (
+  const content = (
     <div className="bg-white dark:bg-[#191a1b] rounded-[10px] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-shadow">
       <div className="flex items-start justify-between">
         <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center">
@@ -75,6 +77,9 @@ function KpiCard({
       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{title}</p>
     </div>
   );
+
+  if (to) return <Link to={to} className="block cursor-pointer">{content}</Link>;
+  return content;
 }
 
 export default function Dashboard() {
@@ -223,6 +228,7 @@ export default function Dashboard() {
           trend="up"
           trendValue="+5%"
           icon={<Users size={20} className="text-[#96f7b9]" />}
+          to="/players"
         />
         <KpiCard
           title="Тренировок на неделе"
@@ -230,6 +236,7 @@ export default function Dashboard() {
           trend="up"
           trendValue="+2"
           icon={<Calendar size={20} className="text-blue-500" />}
+          to="/training"
         />
         <KpiCard
           title="Матчей в месяце"
@@ -237,6 +244,7 @@ export default function Dashboard() {
           trend="down"
           trendValue="-1"
           icon={<Trophy size={20} className="text-amber-500" />}
+          to="/matches"
         />
         <KpiCard
           title="Активных травм"
@@ -244,6 +252,7 @@ export default function Dashboard() {
           trend={teamStats?.activeInjuries && teamStats.activeInjuries > 0 ? "up" : "same"}
           trendValue={teamStats?.activeInjuries && teamStats.activeInjuries > 0 ? "+1" : "0"}
           icon={<Activity size={20} className="text-red-500" />}
+          to="/injuries"
         />
       </div>
 

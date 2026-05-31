@@ -4,7 +4,7 @@ import { createRouter, publicQuery, coachQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { teams, teamMembers, users } from "@db/schema";
 
-function generateInviteCode(): string {
+export function generateInviteCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 

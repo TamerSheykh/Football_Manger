@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, desc, inArray } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
@@ -10,6 +10,7 @@ import {
   matches,
   trainingSessions,
   injuries,
+  teams as teamsTable,
 } from "@db/schema";
 
 export const analyticsRouter = createRouter({
@@ -384,5 +385,213 @@ export const analyticsRouter = createRouter({
       }
 
       return anomalies;
+    }),
+
+  getPlayerRiskScores: publicQuery
+    .input(z.object({ teamId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+
+      // Load team info for age/category context
+      const teamInfo = await db
+        .select()
+        .from(teamsTable)
+        .where(eq(teamsTable.id, input.teamId))
+        .limit(1);
+
+      const teamCategory = teamInfo[0]?.category || "main";
+      const teamAgeGroup = teamInfo[0]?.ageGroup || "";
+
+      // Determine age-based scaling factor from team category
+      // children → 0.4, youth → 0.7, main → 1.0
+      const categoryScale =
+        teamCategory === "children" ? 0.4 :
+        teamCategory === "youth" ? 0.7 : 1.0;
+
+      const teamPlayers = await db
+        .select()
+        .from(players)
+        .where(eq(players.teamId, input.teamId));
+
+      const results: Array<{
+        playerId: number;
+        playerName: string;
+        position: string;
+        age: number;
+        score: number;
+        level: "low" | "medium" | "elevated" | "high";
+        factors: {
+          injury: number;
+          weightChange: number;
+          heartRate: number;
+          attendance: number;
+          matchLoad: number;
+        };
+      }> = [];
+
+      for (const player of teamPlayers) {
+        let score = 0;
+
+        // Calculate player age
+        const playerAge = player.birthDate
+          ? new Date().getFullYear() - new Date(player.birthDate).getFullYear()
+          : 0;
+
+        // Combine category scale with individual age for finer granularity
+        // Children (<14) use 0.4, youth (14-17) use 0.7, adults use 1.0
+        const ageScale =
+          playerAge < 14 ? 0.4 :
+          playerAge < 18 ? 0.7 :
+          Math.max(categoryScale, 0.8);
+
+        // Scaled thresholds for attendance and match load
+        const absencePoints = Math.round(4 * ageScale);
+        const latePoints = Math.round(2 * ageScale);
+        const matchLoadHigh = Math.round(270 * ageScale);
+        const matchLoadMedium = Math.round(200 * ageScale);
+        const matchLoadLow = Math.round(100 * ageScale);
+
+        // --- Factor 1: Injury status (0-30) ---
+        const playerInjuries = await db
+          .select()
+          .from(injuries)
+          .where(eq(injuries.playerId, player.id));
+
+        const activeInjury = playerInjuries.find((i) => i.status === "active");
+        const recoveringInjury = playerInjuries.find((i) => i.status === "recovering");
+        let injuryPoints = 0;
+        if (activeInjury) injuryPoints = 30;
+        else if (recoveringInjury) injuryPoints = 15;
+        score += injuryPoints;
+
+        // --- Factor 2: Weight Z-score (0-20) ---
+        // Statistical — uses player's own history, no age adjustment needed
+        const healthData = await db
+          .select()
+          .from(healthMetrics)
+          .where(eq(healthMetrics.playerId, player.id))
+          .orderBy(healthMetrics.recordedAt);
+
+        const weights = healthData
+          .map((h) => Number(h.weight))
+          .filter((w) => w > 0);
+
+        let weightPoints = 0;
+        if (weights.length >= 2) {
+          const mean = weights.reduce((s, w) => s + w, 0) / weights.length;
+          const std = Math.sqrt(
+            weights.reduce((s, w) => s + (w - mean) ** 2, 0) / weights.length
+          );
+          const lastWeight = weights[weights.length - 1];
+          const zScore = std > 0 ? (lastWeight - mean) / std : 0;
+          if (Math.abs(zScore) > 3) weightPoints = 20;
+          else if (Math.abs(zScore) > 2) weightPoints = 10;
+        }
+        score += weightPoints;
+
+        // --- Factor 3: Resting heart rate (0-15) ---
+        // HRmax = 208 - 0.7*age already accounts for age
+        let hrPoints = 0;
+        const lastHealth = healthData[healthData.length - 1];
+        if (lastHealth?.restingHr && player.birthDate) {
+          const hrMax = 208 - 0.7 * playerAge;
+          if (lastHealth.restingHr > hrMax) hrPoints = 15;
+          else if (lastHealth.restingHr > hrMax * 0.85) hrPoints = 7;
+        }
+        score += hrPoints;
+
+        // --- Factor 4: Training attendance (0-20) ---
+        // Thresholds scaled by age
+        const lastTrainings = await db
+          .select()
+          .from(trainingSessions)
+          .where(eq(trainingSessions.teamId, input.teamId))
+          .orderBy(desc(trainingSessions.sessionDate))
+          .limit(5);
+
+        let attendancePoints = 0;
+        if (lastTrainings.length > 0) {
+          const trainingIds = lastTrainings.map((t) => t.id);
+          const playerAttendance = await db
+            .select()
+            .from(attendance)
+            .where(
+              and(
+                eq(attendance.playerId, player.id),
+                inArray(attendance.trainingId, trainingIds)
+              )
+            );
+
+          for (const att of playerAttendance) {
+            if (att.status === "absent") attendancePoints += absencePoints;
+            else if (att.status === "late") attendancePoints += latePoints;
+          }
+        }
+        score += attendancePoints;
+
+        // --- Factor 5: Match load (0-15) ---
+        // Thresholds scaled by age
+        const lastMatches = await db
+          .select()
+          .from(matches)
+          .where(
+            and(
+              eq(matches.teamId, input.teamId),
+              eq(matches.status, "played")
+            )
+          )
+          .orderBy(desc(matches.matchDate))
+          .limit(3);
+
+        let matchLoadPoints = 0;
+        if (lastMatches.length > 0) {
+          const matchIds = lastMatches.map((m) => m.id);
+          const playerStats = await db
+            .select()
+            .from(playerMatchStats)
+            .where(
+              and(
+                eq(playerMatchStats.playerId, player.id),
+                inArray(playerMatchStats.matchId, matchIds)
+              )
+            );
+
+          const totalMinutes = playerStats.reduce(
+            (s, ps) => s + (ps.minutesPlayed || 0),
+            0
+          );
+          if (totalMinutes > matchLoadHigh) matchLoadPoints = 15;
+          else if (totalMinutes > matchLoadMedium) matchLoadPoints = 10;
+          else if (totalMinutes > matchLoadLow) matchLoadPoints = 5;
+        }
+        score += matchLoadPoints;
+
+        // Determine risk level
+        let level: "low" | "medium" | "elevated" | "high";
+        if (score > 60) level = "high";
+        else if (score > 40) level = "elevated";
+        else if (score > 20) level = "medium";
+        else level = "low";
+
+        results.push({
+          playerId: player.id,
+          playerName: player.name,
+          position: player.position,
+          age: playerAge,
+          score,
+          level,
+          factors: {
+            injury: injuryPoints,
+            weightChange: weightPoints,
+            heartRate: hrPoints,
+            attendance: attendancePoints,
+            matchLoad: matchLoadPoints,
+          },
+        });
+      }
+
+      // Sort by score descending (highest risk first)
+      results.sort((a, b) => b.score - a.score);
+      return results;
     }),
 });

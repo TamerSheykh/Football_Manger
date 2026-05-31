@@ -29,6 +29,7 @@ import {
 } from "chart.js";
 import { Line, Radar } from "react-chartjs-2";
 import { Link } from "react-router";
+import RiskScoreBoard from "@/components/RiskScoreBoard";
 
 ChartJS.register(
   CategoryScale,
@@ -255,6 +256,11 @@ export default function Dashboard() {
           to="/injuries"
         />
       </div>
+
+      {/* Risk scores */}
+      {selectedTeamId && (
+        <RiskScoreBoard teamId={selectedTeamId} />
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">

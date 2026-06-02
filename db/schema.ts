@@ -199,3 +199,33 @@ export const notifications = mysqlTable("notifications", {
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+
+// RPE (Rate of Perceived Exertion) session — one per training
+export const rpeSessions = mysqlTable("rpe_sessions", {
+  id: serial("id").primaryKey(),
+  trainingId: bigint("training_id", { mode: "number", unsigned: true }).notNull(),
+  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type RpeSession = typeof rpeSessions.$inferSelect;
+export type InsertRpeSession = typeof rpeSessions.$inferInsert;
+
+// RPE token — one per player per session
+export const rpeTokens = mysqlTable("rpe_tokens", {
+  id: serial("id").primaryKey(),
+  sessionId: bigint("session_id", { mode: "number", unsigned: true }).notNull(),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  rating: int("rating"), // 0–10 RPE, null until submitted
+  muscleFatigue: int("muscle_fatigue"), // 1–7
+  sleep: int("sleep"), // 1–7
+  stress: int("stress"), // 1–7
+  doms: int("doms"), // 1–7
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+});
+
+export type RpeToken = typeof rpeTokens.$inferSelect;
+export type InsertRpeToken = typeof rpeTokens.$inferInsert;

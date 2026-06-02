@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Trash2,
   FileText,
+  Heart,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -82,6 +83,40 @@ export default function Training() {
       toast.success("Тренировка создана");
     },
   });
+
+  const [rpeDialogOpen, setRpeDialogOpen] = useState(false);
+  const [rpeLinks, setRpeLinks] = useState<{ playerId: number; playerName: string; token: string }[]>([]);
+  const [rpeGenerating, setRpeGenerating] = useState(false);
+
+  const { data: rpeSessionsData } = trpc.rpe.getSessionsByTeam.useQuery(
+    { teamId: selectedTeamId ?? 0 },
+    { enabled: !!selectedTeamId }
+  );
+
+  const rpeSessionMap = new Map(rpeSessionsData?.map((s) => [s.trainingId, s]) ?? []);
+
+  const generateRpeMutation = trpc.rpe.generate.useMutation({
+    onSuccess: (data) => {
+      setRpeGenerating(false);
+      if (data.success) {
+        setRpeLinks(data.tokens ?? []);
+        setRpeDialogOpen(true);
+        toast.success("Ссылки созданы");
+      } else {
+        toast.error(data.error ?? "Ошибка");
+      }
+    },
+    onError: () => {
+      setRpeGenerating(false);
+      toast.error("Ошибка при создании ссылок");
+    },
+  });
+
+  const handleSendRpe = (trainingId: number) => {
+    if (!selectedTeamId || !user?.id) return;
+    setRpeGenerating(true);
+    generateRpeMutation.mutate({ trainingId, teamId: selectedTeamId, userId: user.id });
+  };
 
   const saveAttendanceMutation = trpc.training.saveAttendance.useMutation({
     onSuccess: () => {
@@ -309,6 +344,13 @@ export default function Training() {
                           {t.sessionTime?.slice(0, 5)} {t.name}
                         </button>
                         <button
+                          onClick={(e) => { e.stopPropagation(); handleSendRpe(t.id); }}
+                          disabled={rpeGenerating}
+                          className="opacity-0 group-hover/item:opacity-100 p-0.5 hover:bg-white/20 rounded shrink-0"
+                        >
+                          <Heart size={10} className="text-white/70" />
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); if (confirm("Удалить тренировку?")) deleteMutation.mutate({ id: t.id }); }}
                           className="opacity-0 group-hover/item:opacity-100 p-0.5 hover:bg-white/20 rounded shrink-0"
                         >
@@ -476,6 +518,54 @@ export default function Training() {
               </>
             ) : (
               <p className="text-sm text-gray-400 text-center py-8">Нет игроков в команде</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* RPE Links Dialog */}
+      <Dialog open={rpeDialogOpen} onOpenChange={setRpeDialogOpen}>
+        <DialogContent className="bg-white dark:bg-[#191a1b] border-gray-200 dark:border-[#2a2b2c] sm:max-w-3xl w-[95vw] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">Ссылки для опроса</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            {rpeLinks.length === 0 ? (
+              <p className="text-sm text-gray-400">Нет ссылок</p>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    const text = rpeLinks
+                      .map((item) => `${item.playerName}: ${window.location.origin}/rpe/${item.token}`)
+                      .join("\n");
+                    navigator.clipboard.writeText(text);
+                    toast.success("Все ссылки скопированы");
+                  }}
+                  className="w-full h-9 mb-2 bg-[#1f2937] hover:bg-[#374151] text-white text-sm font-medium rounded-md"
+                >
+                  Копировать все
+                </button>
+                {rpeLinks.map((item) => (
+                  <div key={item.playerId} className="flex items-center gap-2 bg-gray-50 dark:bg-[#11131a] rounded-md p-2 min-w-0">
+                    <span className="text-xs text-gray-900 dark:text-white font-medium w-28 truncate shrink-0">
+                      {item.playerName}
+                    </span>
+                    <code className="flex-1 text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                      {`${window.location.origin}/rpe/${item.token}`}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/rpe/${item.token}`);
+                        toast.success("Ссылка скопирована");
+                      }}
+                      className="h-7 px-2 text-xs bg-[#1f2937] hover:bg-[#374151] text-white rounded shrink-0"
+                    >
+                      Коп.
+                    </button>
+                  </div>
+                ))}
+              </>
             )}
           </div>
         </DialogContent>

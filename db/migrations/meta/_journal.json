@@ -15,6 +15,20 @@
       "when": 1779994828249,
       "tag": "0001_daily_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1780414138336,
+      "tag": "0002_milky_vision",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1780414942241,
+      "tag": "0003_slimy_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

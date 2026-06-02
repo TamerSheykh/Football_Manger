@@ -11,6 +11,8 @@ import {
   trainingSessions,
   injuries,
   teams as teamsTable,
+  rpeTokens,
+  rpeSessions,
 } from "@db/schema";
 
 export const analyticsRouter = createRouter({
@@ -428,8 +430,8 @@ export const analyticsRouter = createRouter({
           injury: number;
           weightChange: number;
           heartRate: number;
-          attendance: number;
-          matchLoad: number;
+          wellness: number;
+          rpe: number;
         };
       }> = [];
 
@@ -442,18 +444,10 @@ export const analyticsRouter = createRouter({
           : 0;
 
         // Combine category scale with individual age for finer granularity
-        // Children (<14) use 0.4, youth (14-17) use 0.7, adults use 1.0
         const ageScale =
           playerAge < 14 ? 0.4 :
           playerAge < 18 ? 0.7 :
           Math.max(categoryScale, 0.8);
-
-        // Scaled thresholds for attendance and match load
-        const absencePoints = Math.round(4 * ageScale);
-        const latePoints = Math.round(2 * ageScale);
-        const matchLoadHigh = Math.round(270 * ageScale);
-        const matchLoadMedium = Math.round(200 * ageScale);
-        const matchLoadLow = Math.round(100 * ageScale);
 
         // --- Factor 1: Injury status (0-30) ---
         const playerInjuries = await db
@@ -504,71 +498,54 @@ export const analyticsRouter = createRouter({
         }
         score += hrPoints;
 
-        // --- Factor 4: Training attendance (0-20) ---
-        // Thresholds scaled by age
-        const lastTrainings = await db
-          .select()
-          .from(trainingSessions)
-          .where(eq(trainingSessions.teamId, input.teamId))
-          .orderBy(desc(trainingSessions.sessionDate))
-          .limit(5);
+        // --- Factor 4: Wellness score from latest RPE (0-20) ---
+        let wellnessPoints = 0;
+        const lastRpeToken = await db
+          .select({
+            rating: rpeTokens.rating,
+            muscleFatigue: rpeTokens.muscleFatigue,
+            sleep: rpeTokens.sleep,
+            stress: rpeTokens.stress,
+            doms: rpeTokens.doms,
+          })
+          .from(rpeTokens)
+          .innerJoin(rpeSessions, eq(rpeSessions.id, rpeTokens.sessionId))
+          .where(eq(rpeTokens.playerId, player.id))
+          .orderBy(desc(rpeTokens.respondedAt))
+          .limit(1);
 
-        let attendancePoints = 0;
-        if (lastTrainings.length > 0) {
-          const trainingIds = lastTrainings.map((t) => t.id);
-          const playerAttendance = await db
-            .select()
-            .from(attendance)
-            .where(
-              and(
-                eq(attendance.playerId, player.id),
-                inArray(attendance.trainingId, trainingIds)
-              )
-            );
+        if (lastRpeToken[0]?.rating != null) {
+          const t = lastRpeToken[0];
+          // Calculate wellness 0-100 (same formula as rpe-router)
+          const items: number[] = [];
+          if (t.muscleFatigue != null) items.push((7 - t.muscleFatigue) / 6 * 100);
+          if (t.sleep != null) items.push((t.sleep - 1) / 6 * 100);
+          if (t.stress != null) items.push((7 - t.stress) / 6 * 100);
+          if (t.doms != null) items.push((7 - t.doms) / 6 * 100);
+          const wellness = items.length ? items.reduce((a, b) => a + b, 0) / items.length : null;
 
-          for (const att of playerAttendance) {
-            if (att.status === "absent") attendancePoints += absencePoints;
-            else if (att.status === "late") attendancePoints += latePoints;
+          if (wellness != null) {
+            if (wellness < 25) wellnessPoints = 20;
+            else if (wellness < 50) wellnessPoints = 14;
+            else if (wellness < 75) wellnessPoints = 7;
           }
+        } else {
+          // No data — assign moderate risk
+          wellnessPoints = 10;
         }
-        score += attendancePoints;
+        score += wellnessPoints;
 
-        // --- Factor 5: Match load (0-15) ---
-        // Thresholds scaled by age
-        const lastMatches = await db
-          .select()
-          .from(matches)
-          .where(
-            and(
-              eq(matches.teamId, input.teamId),
-              eq(matches.status, "played")
-            )
-          )
-          .orderBy(desc(matches.matchDate))
-          .limit(3);
-
-        let matchLoadPoints = 0;
-        if (lastMatches.length > 0) {
-          const matchIds = lastMatches.map((m) => m.id);
-          const playerStats = await db
-            .select()
-            .from(playerMatchStats)
-            .where(
-              and(
-                eq(playerMatchStats.playerId, player.id),
-                inArray(playerMatchStats.matchId, matchIds)
-              )
-            );
-
-          const totalMinutes = playerStats.reduce(
-            (s, ps) => s + (ps.minutesPlayed || 0),
-            0
-          );
-          if (totalMinutes > matchLoadHigh) matchLoadPoints = 15;
-          else if (totalMinutes > matchLoadMedium) matchLoadPoints = 10;
-          else if (totalMinutes > matchLoadLow) matchLoadPoints = 5;
+        // --- Factor 5: RPE load from latest response (0-15) ---
+        let rpePoints = 0;
+        const latestRating = lastRpeToken[0]?.rating;
+        if (latestRating != null) {
+          if (latestRating >= 9) rpePoints = 15;
+          else if (latestRating >= 7) rpePoints = 10;
+          else if (latestRating >= 4) rpePoints = 5;
+        } else {
+          rpePoints = 7; // No data — moderate risk
         }
-        score += matchLoadPoints;
+        score += rpePoints;
 
         // Determine risk level
         let level: "low" | "medium" | "elevated" | "high";
@@ -588,8 +565,8 @@ export const analyticsRouter = createRouter({
             injury: injuryPoints,
             weightChange: weightPoints,
             heartRate: hrPoints,
-            attendance: attendancePoints,
-            matchLoad: matchLoadPoints,
+            wellness: wellnessPoints,
+            rpe: rpePoints,
           },
         });
       }

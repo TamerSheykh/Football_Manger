@@ -7,6 +7,7 @@ import { matchRouter } from "./match-router";
 import { medicalRouter } from "./medical-router";
 import { analyticsRouter } from "./analytics-router";
 import { notificationRouter } from "./notification-router";
+import { rpeRouter } from "./rpe-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -20,6 +21,7 @@ export const appRouter = createRouter({
   medical: medicalRouter,
   analytics: analyticsRouter,
   notification: notificationRouter,
+  rpe: rpeRouter,
 });
 
 export type AppRouter = typeof appRouter;

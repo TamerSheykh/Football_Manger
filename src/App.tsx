@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router";
 import { useCustomAuth } from "@/hooks/useCustomAuth";
 import Login from "./pages/Login";
+import RpeForm from "./pages/RpeForm";
 import Dashboard from "./pages/Dashboard";
 import Teams from "./pages/Teams";
 import Players from "./pages/Players";
@@ -35,6 +36,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/rpe/:token" element={<RpeForm />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/dashboard"

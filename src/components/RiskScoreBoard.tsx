@@ -1,4 +1,8 @@
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+
+const PER_PAGE = 8;
 
 const levelColors: Record<string, { bg: string; dot: string; label: string }> = {
   low: { bg: "bg-emerald-500/10", dot: "bg-emerald-500", label: "Низкий" },
@@ -15,6 +19,8 @@ const positionLabels: Record<string, string> = {
 };
 
 export default function RiskScoreBoard({ teamId }: { teamId: number }) {
+  const [page, setPage] = useState(0);
+
   const { data: riskScores } = trpc.analytics.getPlayerRiskScores.useQuery(
     { teamId },
     { refetchInterval: 60000 }
@@ -22,8 +28,10 @@ export default function RiskScoreBoard({ teamId }: { teamId: number }) {
 
   if (!riskScores || riskScores.length === 0) return null;
 
+  const totalPages = Math.ceil(riskScores.length / PER_PAGE);
+  const safePage = Math.min(page, totalPages - 1);
+  const shown = riskScores.slice(safePage * PER_PAGE, (safePage + 1) * PER_PAGE);
   const atRisk = riskScores.filter((p) => p.level === "elevated" || p.level === "high");
-  const shown = riskScores.slice(0, 8);
 
   return (
     <div className="bg-white dark:bg-[#191a1b] rounded-[10px] p-5 shadow-sm mb-6">
@@ -31,11 +39,32 @@ export default function RiskScoreBoard({ teamId }: { teamId: number }) {
         <h3 className="text-base font-semibold text-gray-900 dark:text-white">
           Индекс риска травмы
         </h3>
-        {atRisk.length > 0 && (
-          <span className="text-xs text-red-500 font-medium">
-            {atRisk.length} игрок{(atRisk.length % 10 === 1 && atRisk.length % 100 !== 11) ? "а" : atRisk.length > 1 && atRisk.length < 5 ? "а" : "ов"} в зоне риска
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {atRisk.length > 0 && (
+            <span className="text-xs text-red-500 font-medium">
+              {atRisk.length} игрок{(atRisk.length % 10 === 1 && atRisk.length % 100 !== 11) ? "а" : atRisk.length > 1 && atRisk.length < 5 ? "а" : "ов"} в зоне риска
+            </span>
+          )}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                className="p-1 hover:bg-white/10 rounded disabled:opacity-30"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-xs text-gray-500 tabular-nums">{safePage + 1}/{totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={safePage >= totalPages - 1}
+                className="p-1 hover:bg-white/10 rounded disabled:opacity-30"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((p) => {
@@ -77,11 +106,6 @@ export default function RiskScoreBoard({ teamId }: { teamId: number }) {
           );
         })}
       </div>
-      {riskScores.length > 8 && (
-        <p className="text-xs text-gray-500 mt-3 text-center">
-          Показано 8 из {riskScores.length} игроков
-        </p>
-      )}
     </div>
   );
 }

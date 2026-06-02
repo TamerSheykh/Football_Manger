@@ -89,21 +89,25 @@ export const analyticsRouter = createRouter({
       const cardsTotal = totalYellowCards + totalRedCards * 3;
       const disciplineNorm = Math.max(0, 1 - cardsTotal / 10);
 
-      // Weights
-      const wGoals = 0.3;
-      const wAssists = 0.2;
-      const wAttendance = 0.2;
-      const wMinutes = 0.2;
-      const wDiscipline = 0.1;
+      // Position-dependent weights
+      const position = player[0].position;
+      const weights = {
+        GK:  { goals: 0, assists: 0, attendance: 0.35, minutes: 0.35, discipline: 0.30 },
+        DEF: { goals: 0.10, assists: 0.10, attendance: 0.25, minutes: 0.25, discipline: 0.30 },
+        MID: { goals: 0.25, assists: 0.20, attendance: 0.20, minutes: 0.20, discipline: 0.15 },
+        FWD: { goals: 0.40, assists: 0.20, attendance: 0.15, minutes: 0.15, discipline: 0.10 },
+      };
+      const w = weights[position as keyof typeof weights] || weights.MID;
 
       const kpi =
-        wGoals * goalsNorm +
-        wAssists * assistsNorm +
-        wAttendance * attendanceNorm +
-        wMinutes * minutesNorm +
-        wDiscipline * disciplineNorm;
+        w.goals * goalsNorm +
+        w.assists * assistsNorm +
+        w.attendance * attendanceNorm +
+        w.minutes * minutesNorm +
+        w.discipline * disciplineNorm;
 
       return {
+        position,
         radar: {
           goals: Math.round(goalsNorm * 100),
           assists: Math.round(assistsNorm * 100),

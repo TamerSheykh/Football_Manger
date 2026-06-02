@@ -49,7 +49,7 @@ export default function Medical() {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"cards" | "injuries" | "metrics">("cards");
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
-    const [metricDialogOpen, setMetricDialogOpen] = useState(false);
+  const [metricDialogOpen, setMetricDialogOpen] = useState(false);
   const [injuryDialogOpen, setInjuryDialogOpen] = useState(false);
   const [metricForm, setMetricForm] = useState({
     weight: "",

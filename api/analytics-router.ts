@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, gte, lte, desc, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import {
@@ -11,8 +11,7 @@ import {
   trainingSessions,
   injuries,
   teams as teamsTable,
-  rpeTokens,
-  rpeSessions,
+
 } from "@db/schema";
 
 export const analyticsRouter = createRouter({
@@ -53,12 +52,21 @@ export const analyticsRouter = createRouter({
       const totalRedCards = stats.reduce((s, r) => s + (r.redCards || 0), 0);
       const totalAttendances = attendances.length;
       const presentCount = attendances.filter((a) => a.status === "present").length;
+      const matchesPlayed = stats.length;
 
-      // Calculate team max values for normalization
-      let maxGoals = 1;
-      let maxAssists = 1;
-      let maxMinutes = 1;
-      let maxAttendance = 1;
+      // Per-90 rates
+      const per90 = (val: number) => totalMinutes > 0 ? (val / totalMinutes) * 90 : 0;
+      const goalsPer90 = per90(totalGoals);
+      const assistsPer90 = per90(totalAssists);
+      const cardsPer90 = per90(totalYellowCards + totalRedCards * 3);
+      const minutesPerMatch = matchesPlayed > 0 ? totalMinutes / matchesPlayed : 0;
+
+      // Calculate team max values for normalization (per-90 for performance metrics)
+      let maxGoalsPer90 = 0.01;
+      let maxAssistsPer90 = 0.01;
+      let maxMinutesPerMatch = 0.01;
+      let maxAttendance = 0.01;
+      let minCardsPer90 = Infinity; // lower is better, track min for inversion
 
       for (const tp of teamPlayers) {
         const pStats = await db
@@ -73,23 +81,31 @@ export const analyticsRouter = createRouter({
         const pGoals = pStats.reduce((s, r) => s + (r.goals || 0), 0);
         const pAssists = pStats.reduce((s, r) => s + (r.assists || 0), 0);
         const pMinutes = pStats.reduce((s, r) => s + (r.minutesPlayed || 0), 0);
+        const pYellow = pStats.reduce((s, r) => s + (r.yellowCards || 0), 0);
+        const pRed = pStats.reduce((s, r) => s + (r.redCards || 0), 0);
+        const pMatches = pStats.length;
         const pTotalAtt = pAttendances.length;
         const pPresent = pAttendances.filter((a) => a.status === "present").length;
 
-        if (pGoals > maxGoals) maxGoals = pGoals;
-        if (pAssists > maxAssists) maxAssists = pAssists;
-        if (pMinutes > maxMinutes) maxMinutes = pMinutes;
+        const pPer90 = (v: number) => pMinutes > 0 ? (v / pMinutes) * 90 : 0;
+        const pGoalsPer90 = pPer90(pGoals);
+        const pAssistsPer90 = pPer90(pAssists);
+        const pCardsPer90 = pPer90(pYellow + pRed * 3);
+        const pMinPerMatch = pMatches > 0 ? pMinutes / pMatches : 0;
+
+        if (pGoalsPer90 > maxGoalsPer90) maxGoalsPer90 = pGoalsPer90;
+        if (pAssistsPer90 > maxAssistsPer90) maxAssistsPer90 = pAssistsPer90;
+        if (pMinPerMatch > maxMinutesPerMatch) maxMinutesPerMatch = pMinPerMatch;
         if (pTotalAtt > 0 && pPresent / pTotalAtt > maxAttendance) maxAttendance = pPresent / pTotalAtt;
+        if (pCardsPer90 < minCardsPer90) minCardsPer90 = pCardsPer90;
       }
 
-      // Normalize and calculate KPI
-      const goalsNorm = maxGoals > 0 ? totalGoals / maxGoals : 0;
-      const assistsNorm = maxAssists > 0 ? totalAssists / maxAssists : 0;
-      const attendanceNorm = totalAttendances > 0 ? presentCount / totalAttendances / maxAttendance : 0;
-      const minutesNorm = maxMinutes > 0 ? totalMinutes / maxMinutes : 0;
-      // Discipline: fewer cards is better, invert
-      const cardsTotal = totalYellowCards + totalRedCards * 3;
-      const disciplineNorm = Math.max(0, 1 - cardsTotal / 10);
+      // Normalize (0-1), discipline inverted
+      const goalsNorm = goalsPer90 / maxGoalsPer90;
+      const assistsNorm = assistsPer90 / maxAssistsPer90;
+      const attendanceNorm = totalAttendances > 0 ? (presentCount / totalAttendances) / maxAttendance : 0;
+      const minutesNorm = minutesPerMatch / maxMinutesPerMatch;
+      const disciplineNorm = minCardsPer90 === Infinity ? 1 : Math.max(0, 1 - (cardsPer90 - minCardsPer90) / (cardsPer90 + minCardsPer90 + 0.01));
 
       // Position-dependent weights
       const position = player[0].position;
@@ -498,60 +514,11 @@ export const analyticsRouter = createRouter({
         }
         score += hrPoints;
 
-        // --- Factor 4: Wellness score from latest RPE (0-20) ---
-        let wellnessPoints = 0;
-        const lastRpeToken = await db
-          .select({
-            rating: rpeTokens.rating,
-            muscleFatigue: rpeTokens.muscleFatigue,
-            sleep: rpeTokens.sleep,
-            stress: rpeTokens.stress,
-            doms: rpeTokens.doms,
-          })
-          .from(rpeTokens)
-          .innerJoin(rpeSessions, eq(rpeSessions.id, rpeTokens.sessionId))
-          .where(eq(rpeTokens.playerId, player.id))
-          .orderBy(desc(rpeTokens.respondedAt))
-          .limit(1);
-
-        if (lastRpeToken[0]?.rating != null) {
-          const t = lastRpeToken[0];
-          // Calculate wellness 0-100 (same formula as rpe-router)
-          const items: number[] = [];
-          if (t.muscleFatigue != null) items.push((7 - t.muscleFatigue) / 6 * 100);
-          if (t.sleep != null) items.push((t.sleep - 1) / 6 * 100);
-          if (t.stress != null) items.push((7 - t.stress) / 6 * 100);
-          if (t.doms != null) items.push((7 - t.doms) / 6 * 100);
-          const wellness = items.length ? items.reduce((a, b) => a + b, 0) / items.length : null;
-
-          if (wellness != null) {
-            if (wellness < 25) wellnessPoints = 20;
-            else if (wellness < 50) wellnessPoints = 14;
-            else if (wellness < 75) wellnessPoints = 7;
-          }
-        } else {
-          // No data — assign moderate risk
-          wellnessPoints = 10;
-        }
-        score += wellnessPoints;
-
-        // --- Factor 5: RPE load from latest response (0-15) ---
-        let rpePoints = 0;
-        const latestRating = lastRpeToken[0]?.rating;
-        if (latestRating != null) {
-          if (latestRating >= 9) rpePoints = 15;
-          else if (latestRating >= 7) rpePoints = 10;
-          else if (latestRating >= 4) rpePoints = 5;
-        } else {
-          rpePoints = 7; // No data — moderate risk
-        }
-        score += rpePoints;
-
         // Determine risk level
         let level: "low" | "medium" | "elevated" | "high";
-        if (score > 60) level = "high";
-        else if (score > 40) level = "elevated";
-        else if (score > 20) level = "medium";
+        if (score > 39) level = "high";
+        else if (score > 26) level = "elevated";
+        else if (score > 13) level = "medium";
         else level = "low";
 
         results.push({
@@ -565,8 +532,6 @@ export const analyticsRouter = createRouter({
             injury: injuryPoints,
             weightChange: weightPoints,
             heartRate: hrPoints,
-            wellness: wellnessPoints,
-            rpe: rpePoints,
           },
         });
       }

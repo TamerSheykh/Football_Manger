@@ -35,6 +35,7 @@ export const playerRouter = createRouter({
         phone: z.string().optional(),
         email: z.string().optional(),
         jerseyNumber: z.number().optional(),
+        photo: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -43,13 +44,15 @@ export const playerRouter = createRouter({
         teamId: input.teamId,
         name: input.name,
         position: input.position,
-        birthDate: input.birthDate ? new Date(input.birthDate) : undefined,
+        birthDate: input.birthDate || undefined,
         height: input.height ? input.height : undefined,
         weight: input.weight ? input.weight : undefined,
         phone: input.phone,
         email: input.email,
         jerseyNumber: input.jerseyNumber,
-      });
+        photo: input.photo || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
       return { id: Number(result[0].insertId) };
     }),
 
@@ -65,6 +68,7 @@ export const playerRouter = createRouter({
         phone: z.string().optional(),
         email: z.string().optional(),
         jerseyNumber: z.number().optional(),
+        photo: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -73,12 +77,13 @@ export const playerRouter = createRouter({
       const updateData: Record<string, unknown> = {};
       if (data.name !== undefined) updateData.name = data.name;
       if (data.position !== undefined) updateData.position = data.position;
-      if (data.birthDate !== undefined) updateData.birthDate = data.birthDate ? new Date(data.birthDate) : null;
+      if (data.birthDate !== undefined) updateData.birthDate = data.birthDate || null;
       if (data.height !== undefined) updateData.height = data.height || null;
       if (data.weight !== undefined) updateData.weight = data.weight || null;
       if (data.phone !== undefined) updateData.phone = data.phone;
       if (data.email !== undefined) updateData.email = data.email;
       if (data.jerseyNumber !== undefined) updateData.jerseyNumber = data.jerseyNumber;
+      if (data.photo !== undefined) updateData.photo = data.photo || null;
       await db.update(players).set(updateData).where(eq(players.id, id));
       return { success: true };
     }),

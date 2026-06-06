@@ -446,8 +446,7 @@ export const analyticsRouter = createRouter({
           injury: number;
           weightChange: number;
           heartRate: number;
-          wellness: number;
-          rpe: number;
+          bloodPressure: number;
         };
       }> = [];
 
@@ -514,11 +513,22 @@ export const analyticsRouter = createRouter({
         }
         score += hrPoints;
 
+        // --- Factor 4: Blood pressure (0-10) ---
+        let bpPoints = 0;
+        if (lastHealth?.bloodPressureSys || lastHealth?.bloodPressureDia) {
+          const sys = lastHealth.bloodPressureSys || 0;
+          const dia = lastHealth.bloodPressureDia || 0;
+          if (sys > 160 || dia > 100) bpPoints = 10;
+          else if (sys > 140 || dia > 90) bpPoints = 5;
+          else if (sys > 130 || dia > 80) bpPoints = 2;
+        }
+        score += bpPoints;
+
         // Determine risk level
         let level: "low" | "medium" | "elevated" | "high";
-        if (score > 39) level = "high";
-        else if (score > 26) level = "elevated";
-        else if (score > 13) level = "medium";
+        if (score > 45) level = "high";
+        else if (score > 30) level = "elevated";
+        else if (score > 15) level = "medium";
         else level = "low";
 
         results.push({
@@ -532,6 +542,7 @@ export const analyticsRouter = createRouter({
             injury: injuryPoints,
             weightChange: weightPoints,
             heartRate: hrPoints,
+            bloodPressure: bpPoints,
           },
         });
       }

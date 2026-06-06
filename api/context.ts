@@ -2,7 +2,6 @@ import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import type { User } from "@db/schema";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
-import { authenticateRequest } from "./kimi/auth";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 
@@ -14,9 +13,9 @@ export type TrpcContext = {
   user?: User;
 };
 
-async function authenticateCustom(headers: Headers): Promise<User | null> {
+async function authenticateCustom(headers: Headers): Promise<User | undefined> {
   const authHeader = headers.get("x-auth-token");
-  if (!authHeader) return null;
+  if (!authHeader) return undefined;
   try {
     const decoded = jwt.verify(authHeader, JWT_SECRET) as {
       userId: number;
@@ -29,9 +28,9 @@ async function authenticateCustom(headers: Headers): Promise<User | null> {
       .from(users)
       .where(eq(users.id, decoded.userId))
       .limit(1);
-    return found[0] || null;
+    return found[0] || undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -39,14 +38,6 @@ export async function createContext(
   opts: FetchCreateContextFnOptions,
 ): Promise<TrpcContext> {
   const ctx: TrpcContext = { req: opts.req, resHeaders: opts.resHeaders };
-  // Try custom JWT first, then Kimi session
   ctx.user = await authenticateCustom(opts.req.headers);
-  if (!ctx.user) {
-    try {
-      ctx.user = await authenticateRequest(opts.req.headers);
-    } catch {
-      // Authentication is optional
-    }
-  }
   return ctx;
 }

@@ -35,7 +35,7 @@ export const teams = mysqlTable("teams", {
   ageGroup: varchar("age_group", { length: 50 }),
   color: varchar("color", { length: 7 }).default("#96f7b9"),
   description: text("description"),
-  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id),
   inviteCode: varchar("invite_code", { length: 20 }).notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
@@ -47,8 +47,8 @@ export type InsertTeam = typeof teams.$inferInsert;
 // Team members (users who joined via invite code)
 export const teamMembers = mysqlTable("team_members", {
   id: serial("id").primaryKey(),
-  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
-  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull().references(() => teams.id, { onDelete: "cascade" }),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "cascade" }),
   role: mysqlEnum("role", ["medical", "coach"]).default("coach").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -59,7 +59,7 @@ export type InsertTeamMember = typeof teamMembers.$inferInsert;
 // Players
 export const players = mysqlTable("players", {
   id: serial("id").primaryKey(),
-  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
+  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull().references(() => teams.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
   position: mysqlEnum("position", ["GK", "DEF", "MID", "FWD"]).notNull(),
   birthDate: date("birth_date"),
@@ -68,6 +68,7 @@ export const players = mysqlTable("players", {
   phone: varchar("phone", { length: 50 }),
   email: varchar("email", { length: 320 }),
   jerseyNumber: int("jersey_number"),
+  photo: varchar("photo", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });
@@ -78,7 +79,7 @@ export type InsertPlayer = typeof players.$inferInsert;
 // Training Sessions
 export const trainingSessions = mysqlTable("training_sessions", {
   id: serial("id").primaryKey(),
-  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
+  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull().references(() => teams.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
   sessionDate: date("session_date").notNull(),
   sessionTime: time("session_time"),
@@ -94,8 +95,8 @@ export type InsertTrainingSession = typeof trainingSessions.$inferInsert;
 // Attendance
 export const attendance = mysqlTable("attendance", {
   id: serial("id").primaryKey(),
-  trainingId: bigint("training_id", { mode: "number", unsigned: true }).notNull(),
-  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull(),
+  trainingId: bigint("training_id", { mode: "number", unsigned: true }).notNull().references(() => trainingSessions.id, { onDelete: "cascade" }),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull().references(() => players.id, { onDelete: "cascade" }),
   status: mysqlEnum("status", ["present", "absent", "late"]).default("present").notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -107,7 +108,7 @@ export type InsertAttendance = typeof attendance.$inferInsert;
 // Matches
 export const matches = mysqlTable("matches", {
   id: serial("id").primaryKey(),
-  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull(),
+  teamId: bigint("team_id", { mode: "number", unsigned: true }).notNull().references(() => teams.id, { onDelete: "cascade" }),
   opponent: varchar("opponent", { length: 255 }).notNull(),
   matchDate: date("match_date").notNull(),
   scoreHome: int("score_home").default(0),
@@ -125,8 +126,8 @@ export type InsertMatch = typeof matches.$inferInsert;
 // Player Match Statistics
 export const playerMatchStats = mysqlTable("player_match_stats", {
   id: serial("id").primaryKey(),
-  matchId: bigint("match_id", { mode: "number", unsigned: true }).notNull(),
-  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull(),
+  matchId: bigint("match_id", { mode: "number", unsigned: true }).notNull().references(() => matches.id, { onDelete: "cascade" }),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull().references(() => players.id, { onDelete: "cascade" }),
   goals: int("goals").default(0),
   assists: int("assists").default(0),
   yellowCards: int("yellow_cards").default(0),
@@ -141,7 +142,7 @@ export type InsertPlayerMatchStat = typeof playerMatchStats.$inferInsert;
 // Medical Records
 export const medicalRecords = mysqlTable("medical_records", {
   id: serial("id").primaryKey(),
-  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull(),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull().references(() => players.id, { onDelete: "cascade" }),
   examinationDate: date("examination_date").notNull(),
   status: mysqlEnum("status", ["cleared", "limited", "not_cleared"]).default("cleared").notNull(),
   notes: text("notes"),
@@ -156,7 +157,7 @@ export type InsertMedicalRecord = typeof medicalRecords.$inferInsert;
 // Injuries
 export const injuries = mysqlTable("injuries", {
   id: serial("id").primaryKey(),
-  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull(),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull().references(() => players.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 255 }).notNull(),
   description: text("description"),
   dateOccurred: date("date_occurred").notNull(),
@@ -171,7 +172,7 @@ export type InsertInjury = typeof injuries.$inferInsert;
 // Health Metrics
 export const healthMetrics = mysqlTable("health_metrics", {
   id: serial("id").primaryKey(),
-  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull(),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).notNull().references(() => players.id, { onDelete: "cascade" }),
   weight: decimal("weight", { precision: 5, scale: 2 }),
   restingHr: int("resting_hr"),
   cooperDistance: decimal("cooper_distance", { precision: 6, scale: 3 }),
@@ -188,15 +189,14 @@ export type InsertHealthMetric = typeof healthMetrics.$inferInsert;
 // Notifications
 export const notifications = mysqlTable("notifications", {
   id: serial("id").primaryKey(),
-  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "cascade" }),
   type: mysqlEnum("type", ["warning", "error", "info"]).default("info").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
-  playerId: bigint("player_id", { mode: "number", unsigned: true }),
+  playerId: bigint("player_id", { mode: "number", unsigned: true }).references(() => players.id, { onDelete: "set null" }),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
-

@@ -41,6 +41,7 @@ export default function Players() {
     phone: "",
     email: "",
     jerseyNumber: undefined as number | undefined,
+    photo: "",
   });
 
   const utils = trpc.useUtils();
@@ -93,7 +94,7 @@ export default function Players() {
   const resetForm = () => {
     setFormData({
       name: "", position: "FWD", birthDate: "", height: "", weight: "",
-      phone: "", email: "", jerseyNumber: undefined,
+      phone: "", email: "", jerseyNumber: undefined, photo: "",
     });
   };
 
@@ -108,6 +109,7 @@ export default function Players() {
       phone: player.phone || "",
       email: player.email || "",
       jerseyNumber: player.jerseyNumber ?? undefined,
+      photo: player.photo || "",
     });
     setDialogOpen(true);
   };
@@ -211,11 +213,15 @@ export default function Players() {
               >
                 <div className="p-5">
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       {/* Avatar */}
-                      <div className={`w-12 h-12 rounded-full ${pos?.color || "bg-gray-500"} flex items-center justify-center text-white font-bold text-sm`}>
-                        {player.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </div>
+                      {player.photo ? (
+                        <img src={player.photo} alt="" className="w-12 h-12 rounded-full object-cover" />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-full ${pos?.color || "bg-gray-500"} flex items-center justify-center text-white font-bold text-sm`}>
+                          {player.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
                           {player.name}
@@ -381,6 +387,26 @@ export default function Players() {
                   placeholder="email@..."
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Фото</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const fd = new FormData();
+                  fd.append("file", file);
+                  const res = await fetch("/api/upload", { method: "POST", body: fd });
+                  const data = await res.json();
+                  if (data.url) setFormData((prev) => ({ ...prev, photo: data.url }));
+                }}
+                className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-[#1f2937] file:text-white hover:file:bg-[#374151]"
+              />
+              {formData.photo && (
+                <img src={formData.photo} alt="preview" className="mt-2 w-16 h-16 rounded-full object-cover" />
+              )}
             </div>
             <div className="flex gap-3 pt-2">
               <button

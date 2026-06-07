@@ -495,6 +495,18 @@ export default function Medical() {
                   className="w-full h-10 px-3 bg-gray-50 dark:bg-[#11131a] border border-gray-200 dark:border-[#2a2b2c] rounded-md text-sm text-gray-900 dark:text-white focus:outline-none focus:border-[#96f7b9]" placeholder="2.4" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 uppercase mb-1.5">Давление (сист)</label>
+                <input type="text" value={metricForm.bloodPressureSys} onChange={(e) => setMetricForm({ ...metricForm, bloodPressureSys: e.target.value })}
+                  className="w-full h-10 px-3 bg-gray-50 dark:bg-[#11131a] border border-gray-200 dark:border-[#2a2b2c] rounded-md text-sm text-gray-900 dark:text-white focus:outline-none focus:border-[#96f7b9]" placeholder="120" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 uppercase mb-1.5">Давление (диа)</label>
+                <input type="text" value={metricForm.bloodPressureDia} onChange={(e) => setMetricForm({ ...metricForm, bloodPressureDia: e.target.value })}
+                  className="w-full h-10 px-3 bg-gray-50 dark:bg-[#11131a] border border-gray-200 dark:border-[#2a2b2c] rounded-md text-sm text-gray-900 dark:text-white focus:outline-none focus:border-[#96f7b9]" placeholder="80" />
+              </div>
+            </div>
             <div>
               <label className="block text-xs text-gray-500 uppercase mb-1.5">Дата измерения</label>
               <input type="date" value={metricForm.recordedAt} onChange={(e) => setMetricForm({ ...metricForm, recordedAt: e.target.value })}
